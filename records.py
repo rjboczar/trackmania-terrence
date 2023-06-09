@@ -85,7 +85,7 @@ def update():
     update_oracle_db(df)
     t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     print(f"Updated database with {len(df)} records at {t}.")
-    df.to_csv(f"./records_{t}.csv", index=False)
+    df.to_csv(f"./records/records_{t}.csv", index=False)
 
 
 if __name__ == "__main__":
