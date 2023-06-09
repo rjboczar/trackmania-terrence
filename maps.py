@@ -14,7 +14,12 @@ load_dotenv()
 Client.USER_AGENT = f"{os.environ['DISCORD_USERNAME']} | {os.environ['CLIENT_APP']}"
 
 
-async def get_official_campaigns():
+async def get_official_campaigns(force: bool = False):
+    if not force:
+        try:
+            return pd.read_csv("official_campaigns.csv")
+        except FileNotFoundError:
+            print("No official_campaigns.csv found, fetching new data.")
     data = []
     official_campaigns = await Campaign.official_campaigns()
     campaigns = [await campaign.get_campaign() for campaign in official_campaigns]
@@ -32,6 +37,7 @@ async def get_official_campaigns():
             )
     df = pd.DataFrame(data)
     df.replace(to_replace="TRAINING NADEO", value="Training", inplace=True)
+    df.to_csv("official_campaigns.csv", index=False)
     return df
 
 
