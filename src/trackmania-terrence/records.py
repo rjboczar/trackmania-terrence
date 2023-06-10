@@ -17,13 +17,7 @@ def get_level(map_name: str):
 
 
 def update_records():
-    token = auth()
-    headers = {
-        "Authorization": f"nadeo_v1 t={token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
+    _, headers = auth()
     players = run(get_players())
     maps = get_maps(players)
 
