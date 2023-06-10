@@ -4,6 +4,7 @@ from datetime import datetime as dt
 import os
 import requests
 import logging
+
 from dotenv import load_dotenv
 
 log = logging.getLogger(__name__)
@@ -36,9 +37,9 @@ def token_expiration(full_refresh_token: str) -> dt:
 
 
 def write_token(token_d: dict, audience: str = "NadeoServices"):
-    with open(f"access_token_{audience}.txt", "w") as f:
+    with open(f"tokens/access_token_{audience}.txt", "w") as f:
         f.write(token_d["accessToken"])
-    with open(f"refresh_token_{audience}.txt", "w") as f:
+    with open(f"tokens/refresh_token_{audience}.txt", "w") as f:
         f.write(token_d["refreshToken"])
 
 
@@ -73,7 +74,7 @@ def get_token(audience: str = "NadeoServices"):
 
 
 def refresh_token(audience: str = "NadeoServices"):
-    with open(f"refresh_token_{audience}.txt", "r") as f:
+    with open(f"tokens/refresh_token_{audience}.txt", "r") as f:
         token = f.read()
     token_refresh_url = (
         "https://prod.trackmania.core.nadeo.online/v2/authentication/token/refresh"

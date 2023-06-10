@@ -1,12 +1,11 @@
 from datetime import datetime
 import pandas as pd
 import requests
-from asyncio import run
 
-from db import update_oracle_db
-from maps import get_maps
-from players import get_players
-from tokens import auth
+from tm.db import update_oracle_db
+from tm.maps import get_maps
+from tm.players import get_players
+from tm.tokens import auth
 
 
 def get_level(map_name: str):
@@ -18,8 +17,8 @@ def get_level(map_name: str):
 
 def update_records():
     _, headers = auth()
-    players = run(get_players())
-    maps = get_maps(players)
+    players = get_players()
+    maps = get_maps(authors=players)
 
     max_maps = 500
     map_data = maps.iloc[:max_maps].reset_index(drop=True)
@@ -50,13 +49,7 @@ def update_records():
         # in ms
         records["record_time"] = records["recordScore"].apply(lambda x: x["time"])
         records["record_medal"] = records["medal"].astype(int)
-        records["map_level"] = records["track"].apply(get_level)
-        records.rename(
-            columns={
-                "track": "map_name",
-            },
-            inplace=True,
-        )
+        records["map_level"] = records["map_name"].apply(get_level)
         records = records[
             [
                 "map_id",
@@ -79,8 +72,4 @@ def update():
     update_oracle_db(df)
     t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     print(f"Updated database with {len(df)} records at {t}.")
-    df.to_csv(f"./records/records_{t}.csv", index=False)
-
-
-if __name__ == "__main__":
-    update()
+    df.to_csv(f"records/records_{t}.csv", index=False)
