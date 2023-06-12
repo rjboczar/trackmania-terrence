@@ -6,6 +6,7 @@ from tm.db import update_oracle_db
 from tm.maps import get_maps
 from tm.players import get_players
 from tm.tokens import auth
+from tm.stats import compute_stats
 
 
 def get_level(map_name: str):
@@ -64,12 +65,15 @@ def update_records():
             ]
         ].reset_index(drop=True)
         dfs.append(records)
-    return pd.concat(dfs, axis=0).reset_index(drop=True)
+    df = pd.concat(dfs, axis=0).reset_index(drop=True)
+    stats_df = compute_stats(df)
+    return {"map_records": df, "map_stats": stats_df}
 
 
 def update():
-    df = update_records()
-    update_oracle_db(df)
+    dfs = update_records()
+    update_oracle_db(dfs)
     t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    print(f"Updated database with {len(df)} records at {t}.")
-    df.to_csv(f"records/records_{t}.csv", index=False)
+    print(f"Updated database with {len(dfs['map_records'])} records at {t}.")
+    dfs["map_records"].to_csv(f"records/map_records_{t}.csv", index=False)
+    dfs["map_stats"].to_csv(f"records/map_stats_{t}.csv", index=False)
