@@ -22,6 +22,11 @@ def points_dict(user_times: dict):
         return points
 
 
+def _untied(points_dict_: dict):
+    # already sorted, so just check if there aren't two 3s
+    return (len(points_dict_) > 1) and (list(points_dict_.values())[1] != 3)
+
+
 def map_stats(group_df: pd.DataFrame):
     user_times = (
         group_df.sort_values("record_time")
@@ -29,7 +34,7 @@ def map_stats(group_df: pd.DataFrame):
         .to_dict(orient="records")
     )
     n = len(user_times)
-    return pd.Series(
+    stats_ = pd.Series(
         {
             "best_user": user_times[0]["username"],
             "best_time": user_times[0]["record_time"],
@@ -40,9 +45,12 @@ def map_stats(group_df: pd.DataFrame):
             if n > 1
             else -1,
             "multi_user": n > 1,
-            "username_points_dict": json.dumps(points_dict(user_times)),
+            "username_points_dict": points_dict(user_times),
         }
     )
+    stats_["untied"] = _untied(stats_["username_points_dict"])
+    stats_["username_points_dict"] = json.dumps(stats_["username_points_dict"])
+    return stats_
 
 
 def compute_stats(df: pd.DataFrame):
