@@ -23,6 +23,7 @@ def update_records():
 
     max_maps = 500
     map_data = maps.iloc[:max_maps].reset_index(drop=True)
+    map_data["map_level"] = map_data["map_name"].apply(get_level)
     player_ids = ",".join(players["player_id"])
 
     # Need to break up the request into chunks because the URL is too long otherwise
@@ -50,7 +51,6 @@ def update_records():
         # in ms
         records["record_time"] = records["recordScore"].apply(lambda x: x["time"])
         records["record_medal"] = records["medal"].astype(int)
-        records["map_level"] = records["map_name"].apply(get_level)
         records = records[
             [
                 "map_id",
@@ -67,6 +67,18 @@ def update_records():
         dfs.append(records)
     df = pd.concat(dfs, axis=0).reset_index(drop=True)
     stats_df = compute_stats(df)
+    # Join back the map data on stats_df, so we have all maps
+    # TODO
+    # stats_df = pd.merge(
+    #     map_data[["map_name", "campaign"]],
+    #     stats_df,
+    #     on=["map_name", "campaign"],
+    #     how="left",
+    # )
+    # stats_df[["best_user", "second_user"]].fillna("", inplace=True)
+    # stats_df[["best_time", "gap", "record_medal"]].fillna(-1, inplace=True)
+    # stats_df["multi_user"].fillna(False, inplace=True)
+    # stats_df["username_points_dict"].fillna("{}", inplace=True)
     return {"map_records": df, "map_stats": stats_df}
 
 
