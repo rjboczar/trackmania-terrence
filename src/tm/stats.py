@@ -43,7 +43,7 @@ def map_stats(group_df: pd.DataFrame):
             "second_user": user_times[1]["username"] if n > 1 else "",
             "gap": user_times[1]["record_time"] - user_times[0]["record_time"]
             if n > 1
-            else -1,
+            else pd.NA,
             "multi_user": n > 1,
             "username_points_dict": points_dict(user_times),
         }
@@ -54,10 +54,15 @@ def map_stats(group_df: pd.DataFrame):
 
 
 def compute_stats(df: pd.DataFrame):
-    return (
+    df = (
         df.groupby("map_name", sort=False)[
             ["campaign", "username", "record_time", "record_medal"]
         ]
         .apply(map_stats)
         .reset_index()
     )
+    # support for NA
+    df[["best_time", "record_medal", "gap"]] = df[
+        ["best_time", "record_medal", "gap"]
+    ].astype("Int64")
+    return df

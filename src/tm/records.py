@@ -69,16 +69,18 @@ def update_records():
     stats_df = compute_stats(df)
     # Join back the map data on stats_df, so we have all maps
     # TODO
-    # stats_df = pd.merge(
-    #     map_data[["map_name", "campaign"]],
-    #     stats_df,
-    #     on=["map_name", "campaign"],
-    #     how="left",
-    # )
-    # stats_df[["best_user", "second_user"]].fillna("", inplace=True)
-    # stats_df[["best_time", "gap", "record_medal"]].fillna(-1, inplace=True)
-    # stats_df["multi_user"].fillna(False, inplace=True)
-    # stats_df["username_points_dict"].fillna("{}", inplace=True)
+    stats_df = pd.merge(
+        map_data[["map_name", "campaign"]],
+        stats_df,
+        on=["map_name", "campaign"],
+        how="left",
+    )
+    # fillna based on type (oracle treats empty string as null)
+    bool_cols = ["multi_user", "untied"]
+    stats_df[bool_cols] = stats_df[bool_cols].fillna(pd.NA).astype("boolean")
+    str_cols = stats_df.columns[stats_df.dtypes == "object"]
+    stats_df[str_cols] = stats_df[str_cols].fillna("")
+
     return {"map_records": df, "map_stats": stats_df}
 
 
