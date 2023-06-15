@@ -1,7 +1,11 @@
+import logging
 import os
 import pandas as pd
 from sqlalchemy import create_engine, types, text
+from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
+
+log = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -10,11 +14,22 @@ password = os.environ["DB_PASSWORD"]
 conn_str = os.environ["DB_CONNECTSTRING"]
 
 
-def update_oracle_db(dfs: dict[str, pd.DataFrame]):
-    engine = create_engine(
+def _engine():
+    return create_engine(
         f"oracle+oracledb://{username}:{password}@{conn_str}",
         thick_mode=None,
+        pool_pre_ping=True,
     )
+
+
+def update_oracle_db(dfs: dict[str, pd.DataFrame]) -> bool:
+    engine = _engine()
+    try:
+        engine.connect()
+    except OperationalError as _:
+        log.error(f"Couldn't connect to db.")
+        return False
+
     for db_name, df in dfs.items():
         dtypes = {
             c: types.VARCHAR(200) for c in df.columns[df.dtypes == "object"].tolist()
@@ -26,14 +41,8 @@ def update_oracle_db(dfs: dict[str, pd.DataFrame]):
             index=False,
             dtype=dtypes,
         )
+    return True
 
 
 if __name__ == "__main__":
-    engine = create_engine(
-        f"oracle+oracledb://{username}:{password}@{conn_str}",
-        thick_mode=None,
-    )
-    df_ = pd.read_sql_query(text("SELECT * FROM map_stats"), engine.connect())
-    print(df_.dtypes)
-    print(df_["best_time"])
-    # print(df)
+    print(pd.read_sql_query(text("SELECT * FROM map_stats"), _engine().connect()))

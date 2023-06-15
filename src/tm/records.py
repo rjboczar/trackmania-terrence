@@ -75,7 +75,7 @@ def update_records():
         on=["map_name", "campaign"],
         how="left",
     )
-    # fillna based on type (oracle treats empty string as null)
+    # replaces NaN based on type (oracle treats empty string as null)
     bool_cols = ["multi_user", "untied"]
     stats_df[bool_cols] = stats_df[bool_cols].fillna(pd.NA).astype("boolean")
     str_cols = stats_df.columns[stats_df.dtypes == "object"]
@@ -86,8 +86,9 @@ def update_records():
 
 def update():
     dfs = update_records()
-    update_oracle_db(dfs)
-    t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    print(f"Updated database with {len(dfs['map_records'])} records at {t}.")
-    dfs["map_records"].to_csv(f"records/map_records_{t}.csv", index=False)
-    dfs["map_stats"].to_csv(f"records/map_stats_{t}.csv", index=False)
+    ok = update_oracle_db(dfs)
+    if ok:
+        t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        print(f"Updated database with {len(dfs['map_records'])} records at {t}.")
+        dfs["map_records"].to_csv(f"records/map_records_{t}.csv", index=False)
+        dfs["map_stats"].to_csv(f"records/map_stats_{t}.csv", index=False)
