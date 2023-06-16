@@ -2,6 +2,8 @@ import base64
 import json
 from datetime import datetime as dt
 import os
+from typing import Optional
+
 import requests
 import logging
 
@@ -25,6 +27,12 @@ base_headers = {
 def validate_response(response: requests.Response, error_str: str):
     if response.status_code != 200:
         raise ConnectionError(f"{error_str} :({response.status_code}:{response.text}).")
+
+
+def validated_get(url: str = "", headers: Optional[dict] = None, error_str: str = ""):
+    response = requests.get(url, headers=headers)
+    validate_response(response, error_str)
+    return response
 
 
 def token_expiration(full_refresh_token: str) -> dt:
@@ -90,7 +98,7 @@ def refresh_token(audience: str = "NadeoServices"):
     return tokens["accessToken"]
 
 
-def auth(audience: str = "NadeoServices") -> tuple[str, dict]:
+def authenticate(audience: str = "NadeoServices") -> tuple[str, dict]:
     try:
         token = refresh_token(audience)
     except (FileNotFoundError, ConnectionError) as e:

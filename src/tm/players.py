@@ -4,13 +4,19 @@ import logging
 
 from trackmania import Player, Client
 
-from tm.tokens import user_agent
+from tm.auth import user_agent
 
 log = logging.getLogger(__name__)
 Client.USER_AGENT = user_agent
 
 
-async def _get_players(force: bool):
+async def _get_players(force: bool) -> pd.DataFrame:
+    """
+    Wrapper function for get_players.
+
+    :param force: If True, fetch new data using the Trackmania.io API.
+    :return: pd.DataFrame with columns "username" and "player_id".
+    """
     if not force:
         try:
             return pd.read_csv("data/player_ids.csv")
@@ -18,6 +24,8 @@ async def _get_players(force: bool):
             log.info("No player_ids.csv found, fetching new data.")
     players = pd.read_csv("data/usernames.csv")
     data = []
+    # usernames.csv can have a second column with player_ids if we know
+    # the search won't work for some reason
     for username, player_id in zip(players.username, players.player_id):
         result = await Player.search(username)
         if result:
@@ -41,5 +49,11 @@ async def _get_players(force: bool):
     return df
 
 
-def get_players(force: bool = False):
+def get_players(force: bool = False) -> pd.DataFrame:
+    """
+    Get player ids corresponding to usernames.csv. Saves to data/player_ids.csv.
+
+    :param force: If True, fetch new data using the Trackmania.io API.
+    :return: pd.DataFrame with columns "username" and "player_id".
+    """
     return run(_get_players(force))

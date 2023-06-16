@@ -1,23 +1,34 @@
 from datetime import datetime
 import pandas as pd
-import requests
 
 from tm.db import update_oracle_db
 from tm.maps import get_maps
 from tm.players import get_players
-from tm.tokens import auth
+from tm.auth import authenticate, validated_get
 from tm.stats import compute_stats
 
 
-def get_level(map_name: str):
+def get_level(map_name: str) -> int:
+    """
+    Returns the level of the map based on the map name. Ranges from 0 to 4, with -1 for unknown.
+
+    :param map_name: str
+    :return: int
+    """
     try:
         return (int(map_name.split(" - ")[1]) - 1) // 5
     except (IndexError, ValueError) as _:
         return -1
 
 
-def update_records():
-    _, headers = auth()
+def map_records() -> dict[str, pd.DataFrame]:
+    """
+    Gets map records for all players returned by get_players().
+    Gets the records for official campaigns and favorite maps created by the players in get_players().
+
+    :return: 'map_records' and 'map_stats' DataFrames.
+    """
+    _, headers = authenticate()
     players = get_players()
     maps = get_maps(authors=players)
 
@@ -38,9 +49,12 @@ def update_records():
         )
         assert len(url) < 8000
 
-        response_maps = requests.get(url, headers=headers)
+        response_maps = validated_get(
+            url=url,
+            headers=headers,
+        )
         records = pd.DataFrame(response_maps.json())
-        # Keeps order of map_data
+        # keeps records in order of map_data
         records = pd.merge(
             map_data, records, left_on="map_id", right_on="mapId", how="left"
         ).dropna(subset=["accountId"])
@@ -48,7 +62,7 @@ def update_records():
             records, players, left_on="accountId", right_on="player_id", how="left"
         )
         records["timestamp"] = pd.to_datetime(records["timestamp"])
-        # in ms
+        # record_time is in ms
         records["record_time"] = records["recordScore"].apply(lambda x: x["time"])
         records["record_medal"] = records["medal"].astype(int)
         records = records[
@@ -67,15 +81,14 @@ def update_records():
         dfs.append(records)
     df = pd.concat(dfs, axis=0).reset_index(drop=True)
     stats_df = compute_stats(df)
-    # Join back the map data on stats_df, so we have all maps
-    # TODO
+    # Join back the map data on stats_df, so maps with no records are still included
     stats_df = pd.merge(
         map_data[["map_name", "campaign"]],
         stats_df,
         on=["map_name", "campaign"],
         how="left",
     )
-    # replaces NaN based on type (oracle treats empty string as null)
+    # replace NaN based on type (Oracle treats empty string as null)
     bool_cols = ["multi_user", "untied"]
     stats_df[bool_cols] = stats_df[bool_cols].fillna(pd.NA).astype("boolean")
     str_cols = stats_df.columns[stats_df.dtypes == "object"]
@@ -84,11 +97,17 @@ def update_records():
     return {"map_records": df, "map_stats": stats_df}
 
 
-def update():
-    dfs = update_records()
+def update() -> bool:
+    """
+    Updates the database with the latest map records and stats.
+    Saves the records and stats DataFrames to CSV files in records/.
+    :return: (bool) True if successful.
+    """
+    dfs = map_records()
     ok = update_oracle_db(dfs)
     if ok:
         t = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         print(f"Updated database with {len(dfs['map_records'])} records at {t}.")
         dfs["map_records"].to_csv(f"records/map_records_{t}.csv", index=False)
         dfs["map_stats"].to_csv(f"records/map_stats_{t}.csv", index=False)
+    return ok

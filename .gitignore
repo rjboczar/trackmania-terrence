@@ -240,6 +240,7 @@ fabric.properties
 .idea/misc.xml
 .idea/inspectionProfiles/
 .idea/*.iml
+.idea/sqldialects.xml
 
 *.csv
 *.txt

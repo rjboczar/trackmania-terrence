@@ -1,7 +1,7 @@
 import logging
 import os
 import pandas as pd
-from sqlalchemy import create_engine, types, text
+from sqlalchemy import create_engine, types, text, Engine
 from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
 
@@ -14,7 +14,11 @@ password = os.environ["DB_PASSWORD"]
 conn_str = os.environ["DB_CONNECTSTRING"]
 
 
-def _engine():
+def _engine() -> Engine:
+    """
+    Creates an engine to connect to the Oracle DB.
+    :return: sqlalchemy.engine.Engine
+    """
     return create_engine(
         f"oracle+oracledb://{username}:{password}@{conn_str}",
         thick_mode=None,
@@ -23,6 +27,11 @@ def _engine():
 
 
 def update_oracle_db(dfs: dict[str, pd.DataFrame]) -> bool:
+    """
+    Update the Oracle DB with the dataframes in the dict.
+    :param dfs: dict of DataFrames to update the Oracle DB with. Maps DB name (str) to pd.DataFrame.
+    :return: bool indicating whether the update was successful.
+    """
     engine = _engine()
     try:
         engine.connect()
@@ -31,6 +40,8 @@ def update_oracle_db(dfs: dict[str, pd.DataFrame]) -> bool:
         return False
 
     for db_name, df in dfs.items():
+        # For speed, make sure we upload str as str, not object (BLOB in Oracle)
+        # https://stackoverflow.com/questions/42727990/speed-up-to-sql-when-writing-pandas-dataframe-to-oracle-database-using-sqlalch
         dtypes = {
             c: types.VARCHAR(200) for c in df.columns[df.dtypes == "object"].tolist()
         }
