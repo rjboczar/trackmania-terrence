@@ -2,7 +2,8 @@ import base64
 import json
 from datetime import datetime as dt
 import os
-from typing import Optional
+from functools import partial
+from typing import Optional, Callable
 
 import requests
 import logging
@@ -24,15 +25,21 @@ base_headers = {
 }
 
 
-def validate_response(response: requests.Response, error_str: str):
+def _validated_request(
+    requests_fn: Callable,
+    url: str = "",
+    headers: Optional[dict] = None,
+    error_str: str = "",
+    **kwargs,
+):
+    response = requests_fn(url, headers=headers, **kwargs)
     if response.status_code != 200:
         raise ConnectionError(f"{error_str} :({response.status_code}:{response.text}).")
-
-
-def validated_get(url: str = "", headers: Optional[dict] = None, error_str: str = ""):
-    response = requests.get(url, headers=headers)
-    validate_response(response, error_str)
     return response
+
+
+validated_get = partial(_validated_request, requests.get)
+validated_post = partial(_validated_request, requests.post)
 
 
 def token_expiration(full_refresh_token: str) -> dt:
@@ -45,52 +52,65 @@ def token_expiration(full_refresh_token: str) -> dt:
 
 
 def write_token(token_d: dict, audience: str = "NadeoServices"):
+    access_key = "access_token" if audience == "OAuth" else "accessToken"
     with open(f"tokens/access_token_{audience}.txt", "w") as f:
-        f.write(token_d["accessToken"])
-    with open(f"tokens/refresh_token_{audience}.txt", "w") as f:
-        f.write(token_d["refreshToken"])
+        f.write(token_d[access_key])
+    if audience != "OAuth":
+        with open(f"tokens/refresh_token_{audience}.txt", "w") as f:
+            f.write(token_d["refreshToken"])
 
 
 def get_token(audience: str = "NadeoServices"):
-    # Get ticket from Ubisoft
-    ticket_request_url = "https://public-ubiservices.ubi.com/v3/profiles/sessions"
-    headers = dict(
-        base_headers, **{"Ubi-AppId": "86263886-327a-4328-ac69-527f0d20a237"}
-    )
-    response = requests.post(
-        ticket_request_url,
+    if audience == "OAuth":
+        token_url = "https://api.trackmania.com/api/access_token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        body = {
+            "grant_type": "client_credentials",
+            "client_id": os.environ["OAUTH_IDENTIFIER"],
+            "client_secret": os.environ["OAUTH_SECRET"],
+        }
+    else:
+        # Get ticket from Ubisoft
+        headers = dict(
+            base_headers, **{"Ubi-AppId": "86263886-327a-4328-ac69-527f0d20a237"}
+        )
+        ticket_response = validated_post(
+            url="https://public-ubiservices.ubi.com/v3/profiles/sessions",
+            headers=headers,
+            auth=(os.environ["UBI_USERNAME"], os.environ["UBI_PASSWORD"]),
+            error_str="Could not get ticket",
+        )
+        # Get tokens from Nadeo
+        headers = dict(
+            base_headers,
+            **{"Authorization": f"ubi_v1 t={ticket_response.json()['ticket']}"},
+        )
+        token_url = "https://prod.trackmania.core.nadeo.online/v2/authentication/token/ubiservices"
+        body = {"audience": audience}
+    response = validated_post(
+        url=token_url,
         headers=headers,
-        auth=(os.environ["UBI_USERNAME"], os.environ["UBI_PASSWORD"]),
+        data=body,
+        error_str=f"Could not get {audience} token",
     )
-    validate_response(response, "Could not get ticket")
-
-    # Get tokens from Nadeo
-    token_request_url = (
-        "https://prod.trackmania.core.nadeo.online/v2/authentication/token/ubiservices"
-    )
-    headers = dict(
-        base_headers, **{"Authorization": f"ubi_v1 t={response.json()['ticket']}"}
-    )
-    response = requests.post(
-        token_request_url, headers=headers, json={"audience": audience}
-    )
-    validate_response(response, "Could not get token")
     tokens = response.json()
     write_token(tokens, audience)
-    log.info("Getting new access token.")
-    return tokens["accessToken"]
+    log.info(f"Getting new {audience} access token.")
+    return tokens["access_token" if audience == "OAuth" else "accessToken"]
 
 
 def refresh_token(audience: str = "NadeoServices"):
+    if audience == "OAuth":
+        raise ConnectionError("Cannot refresh OAuth token")
     with open(f"tokens/refresh_token_{audience}.txt", "r") as f:
         token = f.read()
     token_refresh_url = (
         "https://prod.trackmania.core.nadeo.online/v2/authentication/token/refresh"
     )
     headers = dict(base_headers, **{"Authorization": f"nadeo_v1 t={token}"})
-    response = requests.post(token_refresh_url, headers=headers)
-    validate_response(response, "Could not refresh token")
-
+    response = validated_post(
+        url=token_refresh_url, headers=headers, error_str="Could not refresh token"
+    )
     tokens = response.json()
     exp_time = token_expiration(tokens["refreshToken"])
     log.info(f"Refreshed {audience} token; expires at {exp_time}.")
@@ -104,5 +124,7 @@ def authenticate(audience: str = "NadeoServices") -> tuple[str, dict]:
     except (FileNotFoundError, ConnectionError) as e:
         log.info(f"Error refreshing token: {e}. Getting new token.")
         token = get_token(audience)
-    headers = dict(base_headers, **{"Authorization": f"nadeo_v1 t={token}"})
+    auth_preamble = "nadeo_v1 t=" if audience != "OAuth" else "Bearer "
+    headers = dict(base_headers, **{"Authorization": f"{auth_preamble}{token}"})
+
     return token, headers

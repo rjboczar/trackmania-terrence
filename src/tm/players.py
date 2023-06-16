@@ -1,20 +1,16 @@
 import pandas as pd
-from asyncio import run
 import logging
 
-from trackmania import Player, Client
-
-from tm.auth import user_agent
+from tm.auth import authenticate, validated_get
 
 log = logging.getLogger(__name__)
-Client.USER_AGENT = user_agent
 
 
-async def _get_players(force: bool) -> pd.DataFrame:
+def get_players(force: bool = False) -> pd.DataFrame:
     """
-    Wrapper function for get_players.
+    Gets player ids from the Trackmania API. Reads from data/display_names.csv and writes to data/player_ids.csv.
 
-    :param force: If True, fetch new data using the Trackmania.io API.
+    :param force: If True, fetch new data.
     :return: pd.DataFrame with columns "username" and "player_id".
     """
     if not force:
@@ -22,38 +18,23 @@ async def _get_players(force: bool) -> pd.DataFrame:
             return pd.read_csv("data/player_ids.csv")
         except FileNotFoundError:
             log.info("No player_ids.csv found, fetching new data.")
-    players = pd.read_csv("data/usernames.csv")
-    data = []
-    # usernames.csv can have a second column with player_ids if we know
-    # the search won't work for some reason
-    for username, player_id in zip(players.username, players.player_id):
-        result = await Player.search(username)
-        if result:
-            p = result[0]
-        else:
-            p = await Player.get_player(player_id)
-        if p.zone is False:
-            zone = "?"
-        else:
-            zone = p.zone[0].zone
-        log.info(f"{p.name} - {p.player_id} - {zone}")
-        data.append(
-            {
-                "username": p.name,
-                "player_id": p.player_id,
-            }
+    display_names = pd.read_csv("data/display_names.csv", header=None)
+    _, header = authenticate("OAuth")
+    url = "https://api.trackmania.com/api/display-names/account-ids?" + "&".join(
+        f"displayName[]={name}" for name in display_names[0]
+    )
+    response_players = validated_get(
+        url=url,
+        headers=header,
+        error_str="Couldn't get player ids",
+    )
+    df = (
+        pd.DataFrame.from_dict(
+            response_players.json(), orient="index", columns=["player_id"]
         )
-    df = pd.DataFrame(data)
+        .reset_index()
+        .rename(columns={"index": "username"})
+    )
     df.to_csv("data/player_ids.csv", index=False)
     log.info(f"Found {len(df)} players.")
     return df
-
-
-def get_players(force: bool = False) -> pd.DataFrame:
-    """
-    Get player ids corresponding to usernames.csv. Saves to data/player_ids.csv.
-
-    :param force: If True, fetch new data using the Trackmania.io API.
-    :return: pd.DataFrame with columns "username" and "player_id".
-    """
-    return run(_get_players(force))
