@@ -4,7 +4,7 @@ import logging
 
 from dotenv import load_dotenv
 
-from tm.auth import authenticate, validated_get
+from tm.auth import authenticate, get
 
 log = logging.getLogger(__name__)
 load_dotenv()
@@ -25,7 +25,7 @@ def get_official_maps(force: bool = False, training_maps: bool = True) -> pd.Dat
             log.info("No official_maps.csv found, fetching new data.")
     _, headers = authenticate("NadeoLiveServices")
     # get official campaigns
-    response_official = validated_get(
+    response_official = get(
         url="https://live-services.trackmania.nadeo.live/api/token/campaign/official?offset=0&length=50",
         headers=headers,
         error_str="Could not get official campaigns",
@@ -34,7 +34,7 @@ def get_official_maps(force: bool = False, training_maps: bool = True) -> pd.Dat
     campaigns = response_official.json()["campaignList"]
     if training_maps:
         # Should find https://trackmania.io/#/campaigns/19153/3918
-        response_training = validated_get(
+        response_training = get(
             url=f"https://live-services.trackmania.nadeo.live/api/token/club/campaign?length=10&offset=0&name"
             f"=TRAINING%20NADEO",
             headers=headers,
@@ -51,7 +51,7 @@ def get_official_maps(force: bool = False, training_maps: bool = True) -> pd.Dat
     for campaign in campaigns:
         # get map info by campaign
         campaign_map_ids = ",".join([map_["mapUid"] for map_ in campaign["playlist"]])
-        response_maps = validated_get(
+        response_maps = get(
             url=(
                 f"https://live-services.trackmania.nadeo.live/api/token/map/"
                 f"get-multiple?mapUidList={campaign_map_ids}"
@@ -83,7 +83,7 @@ def get_favorite_maps(authors: pd.DataFrame) -> pd.DataFrame:
     :return: pd.DataFrame of favorite maps created by authors (has campaign['name'] set as "Favorites").
     """
     _, headers = authenticate("NadeoLiveServices")
-    response = validated_get(
+    response = get(
         url=f"https://live-services.trackmania.nadeo.live/api/token/map/favorite?offset=0&length=1000",
         headers=headers,
         error_str="Could not get favorite maps",

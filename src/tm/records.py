@@ -4,7 +4,7 @@ import pandas as pd
 from tm.db import update_oracle_db
 from tm.maps import get_maps
 from tm.players import get_players
-from tm.auth import authenticate, validated_get
+from tm.auth import authenticate, get
 from tm.stats import compute_stats
 
 
@@ -49,7 +49,7 @@ def map_records() -> dict[str, pd.DataFrame]:
         )
         assert len(url) < 8000
 
-        response_maps = validated_get(
+        response_maps = get(
             url=url,
             headers=headers,
         )

@@ -1,7 +1,7 @@
 import pandas as pd
 import logging
 
-from tm.auth import authenticate, validated_get
+from tm.auth import authenticate, get
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def get_players(force: bool = False) -> pd.DataFrame:
     url = "https://api.trackmania.com/api/display-names/account-ids?" + "&".join(
         f"displayName[]={name}" for name in display_names[0]
     )
-    response_players = validated_get(
+    response_players = get(
         url=url,
         headers=header,
         error_str="Couldn't get player ids",

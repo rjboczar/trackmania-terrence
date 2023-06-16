@@ -38,11 +38,11 @@ def _validated_request(
     return response
 
 
-validated_get = partial(_validated_request, requests.get)
-validated_post = partial(_validated_request, requests.post)
+get = partial(_validated_request, requests.get)
+post = partial(_validated_request, requests.post)
 
 
-def token_expiration(full_refresh_token: str) -> dt:
+def _token_expiration(full_refresh_token: str) -> dt:
     token = full_refresh_token.split(".")[1]
     token_decoded = base64.urlsafe_b64decode(token + "=" * (4 - len(token) % 4)).decode(
         "utf-8"
@@ -74,7 +74,7 @@ def get_token(audience: str = "NadeoServices"):
         headers = dict(
             base_headers, **{"Ubi-AppId": "86263886-327a-4328-ac69-527f0d20a237"}
         )
-        ticket_response = validated_post(
+        ticket_response = post(
             url="https://public-ubiservices.ubi.com/v3/profiles/sessions",
             headers=headers,
             auth=(os.environ["UBI_USERNAME"], os.environ["UBI_PASSWORD"]),
@@ -87,7 +87,7 @@ def get_token(audience: str = "NadeoServices"):
         )
         token_url = "https://prod.trackmania.core.nadeo.online/v2/authentication/token/ubiservices"
         body = {"audience": audience}
-    response = validated_post(
+    response = post(
         url=token_url,
         headers=headers,
         data=body,
@@ -108,11 +108,11 @@ def refresh_token(audience: str = "NadeoServices"):
         "https://prod.trackmania.core.nadeo.online/v2/authentication/token/refresh"
     )
     headers = dict(base_headers, **{"Authorization": f"nadeo_v1 t={token}"})
-    response = validated_post(
+    response = post(
         url=token_refresh_url, headers=headers, error_str="Could not refresh token"
     )
     tokens = response.json()
-    exp_time = token_expiration(tokens["refreshToken"])
+    exp_time = _token_expiration(tokens["refreshToken"])
     log.info(f"Refreshed {audience} token; expires at {exp_time}.")
     write_token(tokens, audience)
     return tokens["accessToken"]
