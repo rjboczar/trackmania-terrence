@@ -52,9 +52,8 @@ def _token_expiration(full_refresh_token: str) -> dt:
 
 
 def write_token(token_d: dict, audience: str = "NadeoServices"):
-    access_key = "access_token" if audience == "OAuth" else "accessToken"
     with open(f"tokens/access_token_{audience}.txt", "w") as f:
-        f.write(token_d[access_key])
+        f.write(token_d["accessToken"])
     if audience != "OAuth":
         with open(f"tokens/refresh_token_{audience}.txt", "w") as f:
             f.write(token_d["refreshToken"])
@@ -90,13 +89,15 @@ def get_token(audience: str = "NadeoServices"):
     response = post(
         url=token_url,
         headers=headers,
-        data=body,
+        json=body,
         error_str=f"Could not get {audience} token",
     )
     tokens = response.json()
+    if audience == "OAuth":
+        tokens["accessToken"] = tokens["access_token"]
     write_token(tokens, audience)
     log.info(f"Getting new {audience} access token.")
-    return tokens["access_token" if audience == "OAuth" else "accessToken"]
+    return tokens["accessToken"]
 
 
 def refresh_token(audience: str = "NadeoServices"):
