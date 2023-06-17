@@ -2,11 +2,11 @@ import base64
 import json
 from datetime import datetime as dt
 import os
+import requests
+import logging
 from functools import partial
 from typing import Optional, Callable
 
-import requests
-import logging
 
 from dotenv import load_dotenv
 
@@ -68,6 +68,7 @@ def get_token(audience: str = "NadeoServices"):
             "client_id": os.environ["OAUTH_IDENTIFIER"],
             "client_secret": os.environ["OAUTH_SECRET"],
         }
+        post_kwargs = {"data": body}
     else:
         # Get ticket from Ubisoft
         headers = dict(
@@ -85,11 +86,12 @@ def get_token(audience: str = "NadeoServices"):
             **{"Authorization": f"ubi_v1 t={ticket_response.json()['ticket']}"},
         )
         token_url = "https://prod.trackmania.core.nadeo.online/v2/authentication/token/ubiservices"
-        body = {"audience": audience}
+        # have to use 'json' rather than 'data' kwarg
+        post_kwargs = {"json": {"audience": audience}}
     response = post(
         url=token_url,
         headers=headers,
-        json=body,
+        **post_kwargs,
         error_str=f"Could not get {audience} token",
     )
     tokens = response.json()
