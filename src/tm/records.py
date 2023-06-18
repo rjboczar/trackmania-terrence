@@ -32,14 +32,14 @@ def map_records() -> dict[str, pd.DataFrame]:
     players = get_players()
     maps = get_maps(authors=players)
 
-    max_maps = 500
+    max_maps = 1000
     map_data = maps.iloc[:max_maps].reset_index(drop=True)
     map_data["map_level"] = map_data["map_name"].apply(get_level)
     player_ids = ",".join(players["player_id"])
 
     # Need to break up the request into chunks because the URL is too long otherwise
     dfs = []
-    chunk_size = 100
+    chunk_size = 200
     for start in range(0, len(map_data), chunk_size):
         current_map_ids = ",".join(map_data["map_id"][start : start + chunk_size])
 
