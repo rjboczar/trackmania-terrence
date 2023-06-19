@@ -19,11 +19,6 @@ user_agent = (
     f"/ {os.environ['CONTACT_EMAIL']}"
 )
 
-base_headers = {
-    "Content-Type": "application/json",
-    "User-Agent": f"{user_agent}",
-}
-
 
 def _validated_request(
     requests_fn: Callable,
@@ -57,6 +52,12 @@ def write_token(token_d: dict, audience: str = "NadeoServices"):
     if audience != "OAuth":
         with open(f"tokens/refresh_token_{audience}.txt", "w") as f:
             f.write(token_d["refreshToken"])
+
+
+base_headers = {
+    "Content-Type": "application/json",
+    "User-Agent": f"{user_agent}",
+}
 
 
 def get_token(audience: str = "NadeoServices"):

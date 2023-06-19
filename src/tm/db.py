@@ -1,29 +1,30 @@
 import logging
 import os
 import pandas as pd
-from sqlalchemy import create_engine, types, text, Engine
-from sqlalchemy.exc import OperationalError
+import numpy as np
+from oracledb import connect, DatabaseError
 from dotenv import load_dotenv
 
 log = logging.getLogger(__name__)
 
 load_dotenv()
 
-username = os.environ["DB_USERNAME"]
-password = os.environ["DB_PASSWORD"]
-conn_str = os.environ["DB_CONNECTSTRING"]
 
-
-def _engine() -> Engine:
+def _oracle_dtype(col: pd.Series) -> str:
     """
-    Creates an engine to connect to the Oracle DB.
-    :return: sqlalchemy.engine.Engine
+    Maps a pandas Series to an Oracle dtype.
+    :param col: dtype of the Series.
+    :return: Oracle dtype string cor use in create table.
     """
-    return create_engine(
-        f"oracle+oracledb://{username}:{password}@{conn_str}",
-        thick_mode=None,
-        pool_pre_ping=True,
-    )
+    dtype = col.dtype.name
+    if dtype in ("int64", "Int64", "boolean"):
+        return "NUMBER"
+    elif dtype == "object":
+        return f"VARCHAR2(200)"
+    elif dtype == "datetime64[ns, UTC]":
+        return "TIMESTAMP WITH TIME ZONE"
+    else:
+        raise ValueError(f"Unknown dtype {dtype}.")
 
 
 def update_oracle_db(dfs: dict[str, pd.DataFrame]) -> bool:
@@ -32,28 +33,30 @@ def update_oracle_db(dfs: dict[str, pd.DataFrame]) -> bool:
     :param dfs: dict of DataFrames to update the Oracle DB with. Maps DB name (str) to pd.DataFrame.
     :return: bool indicating whether the update was successful.
     """
-    engine = _engine()
+    username = os.environ["DB_USERNAME"]
+    password = os.environ["DB_PASSWORD"]
+    conn_str = os.environ["DB_CONNECTSTRING"]
     try:
-        engine.connect()
-    except OperationalError as _:
-        log.error(f"Couldn't connect to db.")
+        with connect(dsn=conn_str, user=username, password=password) as connection:
+            with connection.cursor() as cursor:
+                for db_name, df in dfs.items():
+                    try:
+                        cursor.execute(f"drop table {db_name}")
+                    except DatabaseError:
+                        pass
+                    # Create table using the correct types for Oracle DB
+                    cols = df.columns
+                    schema = ",".join(f"{c} {_oracle_dtype(df[c]) }" for c in cols)
+                    cursor.execute(f"create table {db_name} ({schema})")
+                    # Insert data into table, imputing NaN with None per docs
+                    binds = ", ".join(f":{c}" for c in df.columns)
+                    cursor.executemany(
+                        f"insert into {db_name}"
+                        f"({', '.join(cols)}) values ({binds})",
+                        df.replace([np.nan], [None]).to_dict("records"),
+                    )
+                    connection.commit()
+    except DatabaseError as e:
+        log.error(f"Error connecting to Oracle DB: {e}")
         return False
-
-    for db_name, df in dfs.items():
-        # For speed, make sure we upload str as str, not object (BLOB in Oracle)
-        # https://stackoverflow.com/questions/42727990/speed-up-to-sql-when-writing-pandas-dataframe-to-oracle-database-using-sqlalch
-        dtypes = {
-            c: types.VARCHAR(200) for c in df.columns[df.dtypes == "object"].tolist()
-        }
-        df.to_sql(
-            db_name,
-            engine,
-            if_exists="replace",
-            index=False,
-            dtype=dtypes,
-        )
     return True
-
-
-if __name__ == "__main__":
-    print(pd.read_sql_query(text("SELECT * FROM map_stats"), _engine().connect()))
