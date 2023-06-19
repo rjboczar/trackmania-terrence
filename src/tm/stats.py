@@ -1,36 +1,30 @@
 import json
-from typing import Sequence
-
 import pandas as pd
-
-
-def seconds_to_points(vals: Sequence) -> list:
-    points = []
-    current = None
-    rank = -1
-    for ix, val in enumerate(vals):
-        if current != val:
-            current = val
-            rank = ix
-        points.append(max(3 - rank, 0))
-    return points
 
 
 def points_dict(user_times: pd.DataFrame) -> dict[str, int]:
     """
     Computes points for each user based on their time.
 
-    :param user_times: pd.DataFrame with keys 'username' and 'record_time'.
+    Score = 3 - (# of players strictly ahead in seconds digit)
+    If there are 1 or 2 players, scores are decreased by 2 or 1 points, respectively.
+    :param user_times: pd.DataFrame with keys 'username' and 'record_time'. Times are in milliseconds.
     :return: dict mapping usernames to points.
     """
-    if len(user_times) == 1:
-        return {user_times.iloc[0]["username"]: 1}
-    else:
-        # Score = max(0, 3 - (# of players strictly ahead in seconds digit))
-        # truncate times to seconds digit
-        user_times["record_time"] //= 1000
-        points = seconds_to_points(user_times["record_time"])
-        return dict(zip(user_times["username"], points))
+    # truncate times to seconds digit
+    user_times["record_time"] //= 1000
+    points = dict()
+    current = None
+    rank = -1
+    penalty = max(3 - len(user_times), 0)
+    for ix, (username, val) in enumerate(
+        zip(user_times["username"], user_times["record_time"])
+    ):
+        if current != val:
+            current = val
+            rank = ix
+        points[username] = max(3 - rank - penalty, 0)
+    return points
 
 
 def _untied(points_d: dict[str, int]) -> bool:
