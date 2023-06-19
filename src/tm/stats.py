@@ -1,29 +1,37 @@
 import json
+from typing import Sequence
+
 import pandas as pd
+import numpy as np
 
 
-def points_dict(user_times: list[dict[str, str | int]]) -> dict[str, int]:
+def seconds_to_points(vals: Sequence) -> list:
+    points = np.zeros_like(vals, dtype=int)
+    current = None
+    rank = 1
+    for ix, val in enumerate(vals):
+        if val != current:
+            current = val
+            rank = ix
+        points[ix] = rank
+    return np.maximum(0, 3 - points).tolist()
+
+
+def points_dict(user_times: pd.DataFrame) -> dict[str, int]:
     """
     Computes points for each user based on their time.
 
-    :param user_times: list of dict with keys 'username' and 'record_time'.
+    :param user_times: pd.DataFrame with keys 'username' and 'record_time'.
     :return: dict mapping usernames to points.
     """
-    # truncate times to seconds digit
-    for user_time in user_times:
-        user_time["record_time"] //= 1000
     if len(user_times) == 1:
-        return {user_times[0]["username"]: 1}
+        return {user_times.iloc[0]["username"]: 1}
     else:
         # Score = max(0, 3 - (# of players strictly ahead in seconds digit))
-        points = {}
-        for ut in user_times:
-            better_times = sum(
-                1 for ut2 in user_times if ut2["record_time"] < ut["record_time"]
-            )
-            user_points = max(0, 3 - better_times)
-            points[ut["username"]] = user_points
-        return points
+        # truncate times to seconds digit
+        user_times["record_time"] //= 1000
+        points = seconds_to_points(user_times["record_time"])
+        return dict(zip(user_times["username"], points))
 
 
 def _untied(points_d: dict[str, int]) -> bool:
@@ -43,30 +51,26 @@ def map_stats(group_df: pd.DataFrame) -> pd.Series:
     :param group_df: DataFrame of map records for a single map, as computed in pd.groupby().
     :return: Series of map stats.
     """
-    user_times = (
-        group_df.sort_values("record_time")
-        .reset_index(drop=True)
-        .to_dict(orient="records")
-    )
-    n = len(user_times)
+    group_df = group_df.sort_values("record_time")
+    n = len(group_df)
+    multi_user = n > 1
+    best = group_df.iloc[0]
+    second_best = group_df.iloc[1] if n > 1 else None
     stats_ = pd.Series(
         {
-            "best_user": user_times[0]["username"],
-            "best_time": user_times[0]["record_time"],
-            "record_medal": user_times[0]["record_medal"],
-            "campaign": user_times[0]["campaign"],
+            **best,
             # Second-fastest user (else '')
-            "second_user": user_times[1]["username"] if n > 1 else "",
+            "second_user": second_best["username"] if multi_user else "",
             # Gap between best and second-best times (else pd.NA)
-            "gap": user_times[1]["record_time"] - user_times[0]["record_time"]
-            if n > 1
+            "gap": second_best["record_time"] - best["record_time"]
+            if multi_user
             else pd.NA,
             # Whether more than one user has played the track
-            "multi_user": n > 1,
+            "multi_user": multi_user,
             # dict mapping usernames to points
-            "username_points_dict": points_dict(user_times),
+            "username_points_dict": points_dict(group_df),
         }
-    )
+    ).rename({"record_time": "best_time"})
     # Whether the map is 'untied' w.r.t. seconds digit
     stats_["untied"] = _untied(stats_["username_points_dict"])
     # Convert points dict to JSON string for DB storage
