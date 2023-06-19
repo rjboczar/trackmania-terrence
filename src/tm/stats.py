@@ -6,15 +6,15 @@ import numpy as np
 
 
 def seconds_to_points(vals: Sequence) -> list:
-    points = np.zeros_like(vals, dtype=int)
+    points = []
     current = None
-    rank = 1
+    rank = -1
     for ix, val in enumerate(vals):
-        if val != current:
+        if current != val:
             current = val
             rank = ix
-        points[ix] = rank
-    return np.maximum(0, 3 - points).tolist()
+        points.append(max(3 - rank, 0))
+    return points
 
 
 def points_dict(user_times: pd.DataFrame) -> dict[str, int]:
