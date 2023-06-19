@@ -2,7 +2,6 @@ import json
 from typing import Sequence
 
 import pandas as pd
-import numpy as np
 
 
 def seconds_to_points(vals: Sequence) -> list:

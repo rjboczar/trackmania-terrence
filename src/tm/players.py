@@ -1,7 +1,7 @@
 import pandas as pd
 import logging
 
-from tm.auth import authenticate, get
+from tm.nadeo_client import NadeoClient
 
 log = logging.getLogger(__name__)
 
@@ -19,19 +19,13 @@ def get_players(force: bool = False) -> pd.DataFrame:
         except FileNotFoundError:
             log.info("No player_ids.csv found, fetching new data.")
     display_names = pd.read_csv("data/display_names.csv", header=None)
-    _, header = authenticate("OAuth")
-    url = "https://api.trackmania.com/api/display-names/account-ids?" + "&".join(
+    client = NadeoClient(audience="OAuth")
+    endpoint = "/display-names/account-ids?" + "&".join(
         f"displayName[]={name}" for name in display_names[0]
     )
-    response_players = get(
-        url=url,
-        headers=header,
-        error_str="Couldn't get player ids",
-    )
+    players = client.get_json(endpoint=endpoint)
     df = (
-        pd.DataFrame.from_dict(
-            response_players.json(), orient="index", columns=["player_id"]
-        )
+        pd.DataFrame.from_dict(players, orient="index", columns=["player_id"])
         .reset_index()
         .rename(columns={"index": "username"})
     )

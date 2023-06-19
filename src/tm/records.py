@@ -4,7 +4,7 @@ import pandas as pd
 from tm.db import update_oracle_db
 from tm.maps import get_maps
 from tm.players import get_players
-from tm.auth import authenticate, get
+from tm.nadeo_client import NadeoClient
 from tm.stats import compute_stats
 
 
@@ -28,7 +28,6 @@ def map_records() -> dict[str, pd.DataFrame]:
 
     :return: 'map_records' and 'map_stats' DataFrames.
     """
-    _, headers = authenticate()
     players = get_players()
     maps = get_maps(authors=players)
 
@@ -40,20 +39,14 @@ def map_records() -> dict[str, pd.DataFrame]:
     # Need to break up the request into chunks because the URL is too long otherwise
     dfs = []
     chunk_size = 200
+    client = NadeoClient(audience="NadeoServices")
+
     for start in range(0, len(map_data), chunk_size):
         current_map_ids = ",".join(map_data["map_id"][start : start + chunk_size])
-
-        url = (
-            f"https://prod.trackmania.core.nadeo.online/mapRecords/?accountIdList={player_ids}"
-            f"&mapIdList={current_map_ids}"
+        endpoint = (
+            f"/mapRecords/?accountIdList={player_ids}&mapIdList={current_map_ids}"
         )
-        assert len(url) < 8000
-
-        response_maps = get(
-            url=url,
-            headers=headers,
-        )
-        records = pd.DataFrame(response_maps.json())
+        records = pd.DataFrame(client.get_json(endpoint=endpoint))
         # keeps records in order of map_data
         records = pd.merge(
             map_data, records, left_on="map_id", right_on="mapId", how="left"
