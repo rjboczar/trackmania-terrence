@@ -65,6 +65,7 @@ def map_records() -> dict[str, pd.DataFrame]:
                 "map_name",
                 "player_id",
                 "username",
+                "team",
                 "timestamp",
                 "record_time",
                 "record_medal",
@@ -87,7 +88,7 @@ def map_records() -> dict[str, pd.DataFrame]:
     str_cols = stats_df.columns[stats_df.dtypes == "object"]
     stats_df[str_cols] = stats_df[str_cols].fillna("")
 
-    return {"map_records": df, "map_stats": stats_df}
+    return {"map_records": df, "map_stats": stats_df, "player_data": players}
 
 
 def update() -> bool:
