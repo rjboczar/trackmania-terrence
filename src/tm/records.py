@@ -5,7 +5,7 @@ from tm.db import update_oracle_db
 from tm.maps import get_maps
 from tm.players import get_players
 from tm.nadeo_client import NadeoClient
-from tm.stats import compute_stats
+from tm.stats import map_stats, map_points
 
 
 def get_level(map_name: str) -> int:
@@ -74,21 +74,24 @@ def map_records() -> dict[str, pd.DataFrame]:
         ].reset_index(drop=True)
         dfs.append(records)
     df = pd.concat(dfs, axis=0).reset_index(drop=True)
-    stats_df = compute_stats(df)
-    # Join back the map data on stats_df, so maps with no records are still included
-    stats_df = pd.merge(
+    # keeps current order of maps and sorts by record_time increasing
+    df = df.groupby("map_id").apply(map_points).reset_index(drop=True)
+    # best times and records for each map
+    map_stats_df = map_stats(df)
+    # Join back the map data on map_stats_df, so maps with no records are still included
+    map_stats_df = pd.merge(
         map_data[["map_name", "campaign"]],
-        stats_df,
+        map_stats_df,
         on=["map_name", "campaign"],
         how="left",
     )
     # replace NaN based on type (Oracle treats empty string as null)
     bool_cols = ["multi_user", "untied"]
-    stats_df[bool_cols] = stats_df[bool_cols].fillna(pd.NA).astype("boolean")
-    str_cols = stats_df.columns[stats_df.dtypes == "object"]
-    stats_df[str_cols] = stats_df[str_cols].fillna("")
+    map_stats_df[bool_cols] = map_stats_df[bool_cols].fillna(pd.NA).astype("boolean")
+    str_cols = map_stats_df.columns[map_stats_df.dtypes == "object"]
+    map_stats_df[str_cols] = map_stats_df[str_cols].fillna("")
 
-    return {"map_records": df, "map_stats": stats_df, "player_data": players}
+    return {"map_records": df, "map_stats": map_stats_df, "player_data": players}
 
 
 def update() -> bool:
