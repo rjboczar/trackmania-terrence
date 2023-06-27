@@ -91,7 +91,42 @@ def map_records() -> dict[str, pd.DataFrame]:
     str_cols = map_stats_df.columns[map_stats_df.dtypes == "object"]
     map_stats_df[str_cols] = map_stats_df[str_cols].fillna("")
 
-    return {"map_records": df, "map_stats": map_stats_df, "player_data": players}
+    # Compute campaign stats for total team points and mvp
+    campaign_teams = pd.merge(
+        players[["team", "username"]], map_stats_df["campaign"], how="cross"
+    ).drop_duplicates()
+    campaign_points = (
+        df.replace({"": pd.NA})
+        .groupby(["campaign", "username"], sort=False)[["points"]]
+        .sum()
+        .reset_index()
+    )
+    campaign_points = pd.merge(
+        campaign_teams,
+        campaign_points,
+        on=("campaign", "username"),
+        how="left",
+        sort=False,
+    )
+    campaign_points["points"] = campaign_points["points"].fillna(0).astype(int)
+    campaign_stats_df = (
+        campaign_points.sort_values("points", ascending=False)
+        .groupby(["campaign", "team"])
+        .agg(
+            points=("points", "sum"),
+            mvp=("username", "first"),
+            mvp_points=("points", "first"),
+        )
+    ).reset_index()
+
+    campaign_stats_df.loc[campaign_stats_df["points"] == 0, "mvp"] = ""
+
+    return {
+        "map_records": df,
+        "map_stats": map_stats_df,
+        "campaign_stats": campaign_stats_df,
+        "player_data": players,
+    }
 
 
 def update() -> bool:
